@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { AuthForm } from './components/auth/AuthForm';
 import { CoupleSetup } from './components/couple/CoupleSetup';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -7,26 +6,29 @@ import { CoupleService } from './services/CoupleService';
 import { Heart } from 'lucide-react';
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { coupleId, loading, setCoupleId } = useAuth();
   const [hasCouple, setHasCouple] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (user) {
-      checkCouple();
-    }
-  }, [user]);
+    checkCouple();
+  }, []);
 
   const checkCouple = async () => {
     try {
       const couple = await CoupleService.getMyCouple();
-      setHasCouple(couple !== null);
+      if (couple) {
+        setCoupleId(couple.id);
+        setHasCouple(true);
+      } else {
+        setHasCouple(false);
+      }
     } catch (error) {
       console.error('Error checking couple:', error);
       setHasCouple(false);
     }
   };
 
-  if (loading || (user && hasCouple === null)) {
+  if (loading || hasCouple === null) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-100 via-pink-50 to-red-100 flex items-center justify-center">
         <div className="text-center">
@@ -37,12 +39,8 @@ function AppContent() {
     );
   }
 
-  if (!user) {
-    return <AuthForm />;
-  }
-
-  if (!hasCouple) {
-    return <CoupleSetup onCoupleCreated={() => setHasCouple(true)} />;
+  if (!hasCouple || !coupleId) {
+    return <CoupleSetup onCoupleCreated={() => checkCouple()} />;
   }
 
   return <Dashboard />;

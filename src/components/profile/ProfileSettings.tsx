@@ -1,46 +1,45 @@
 import { useState } from 'react';
 import { Heart, Calendar, Edit, Save } from 'lucide-react';
 import { CoupleService } from '../../services/CoupleService';
-import { useAuth } from '../../contexts/AuthContext';
 import { Database } from '../../lib/database.types';
 
 type Couple = Database['public']['Tables']['couples']['Row'];
 
 interface ProfileSettingsProps {
   couple: Couple;
-  partner: any;
   onUpdate: () => void;
 }
 
-export function ProfileSettings({ couple, partner, onUpdate }: ProfileSettingsProps) {
-  const { profile, updateProfile } = useAuth();
+export function ProfileSettings({ couple, onUpdate }: ProfileSettingsProps) {
   const [editing, setEditing] = useState(false);
-  const [coupleName, setCoupleName] = useState(couple.couple_name);
+  const [coupleName, setCoupleName] = useState(couple.couple_name || '');
   const [anniversaryDate, setAnniversaryDate] = useState(couple.anniversary_date || '');
-  const [fullName, setFullName] = useState(profile?.full_name || '');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleSave = async () => {
     setLoading(true);
+    setError('');
+    setSuccess('');
     try {
-      await Promise.all([
-        CoupleService.updateCouple(couple.id, {
-          couple_name: coupleName,
-          anniversary_date: anniversaryDate || null,
-        }),
-        updateProfile({ full_name: fullName }),
-      ]);
+      await CoupleService.updateCouple(couple.id, {
+        couple_name: coupleName || undefined,
+        anniversary_date: anniversaryDate || null,
+      });
       setEditing(false);
+      setSuccess('Settings saved successfully!');
+      setTimeout(() => setSuccess(''), 3000);
       onUpdate();
-    } catch (error) {
-      console.error('Error updating settings:', error);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save settings');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto">
       <div className="bg-white rounded-xl shadow-md p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Couple Settings</h2>
@@ -75,11 +74,12 @@ export function ProfileSettings({ couple, partner, onUpdate }: ProfileSettingsPr
                 value={coupleName}
                 onChange={(e) => setCoupleName(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                placeholder="Our couple name"
               />
             ) : (
               <div className="flex items-center gap-2 text-gray-800">
                 <Heart className="w-5 h-5 text-rose-500" />
-                <span className="text-lg font-medium">{coupleName}</span>
+                <span className="text-lg font-medium">{coupleName || 'Not set'}</span>
               </div>
             )}
           </div>
@@ -111,58 +111,19 @@ export function ProfileSettings({ couple, partner, onUpdate }: ProfileSettingsPr
             )}
           </div>
         </div>
+
+        {error && (
+          <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
+            {success}
+          </div>
+        )}
       </div>
-
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Personal Profile</h2>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Your Name
-            </label>
-            {editing ? (
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-              />
-            ) : (
-              <p className="text-gray-800 text-lg">{profile?.full_name}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <p className="text-gray-800">{profile?.email}</p>
-          </div>
-        </div>
-      </div>
-
-      {partner && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Partner Info</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Name
-              </label>
-              <p className="text-gray-800 text-lg">{partner.full_name}</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <p className="text-gray-800">{partner.email}</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

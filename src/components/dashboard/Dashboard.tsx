@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Heart, Plus, Calendar as CalendarIcon, Book, User, LogOut, Settings } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { Heart, Plus, Calendar as CalendarIcon, Book, Settings } from 'lucide-react';
 import { CoupleService } from '../../services/CoupleService';
 import { MemoryService } from '../../services/MemoryService';
 import { MemoryBook } from '../memory/MemoryBook';
@@ -19,8 +18,6 @@ export function Dashboard() {
   const [showMemoryForm, setShowMemoryForm] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [loading, setLoading] = useState(true);
-  const [partner, setPartner] = useState<any>(null);
-  const { profile, signOut } = useAuth();
 
   useEffect(() => {
     loadData();
@@ -33,8 +30,6 @@ export function Dashboard() {
         setCouple(coupleData);
         const memoriesData = await MemoryService.getMemories(coupleData.id);
         setMemories(memoriesData);
-        const partnerData = await CoupleService.getCouplePartner(coupleData.id);
-        setPartner(partnerData);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -94,11 +89,6 @@ export function Dashboard() {
                 <h1 className="text-xl font-bold text-gray-800">
                   {couple?.couple_name || 'Our Memory Book'}
                 </h1>
-                {partner && (
-                  <p className="text-xs text-gray-500">
-                    {profile?.full_name} & {partner.full_name}
-                  </p>
-                )}
               </div>
             </div>
 
@@ -133,12 +123,6 @@ export function Dashboard() {
               >
                 <Settings className="w-5 h-5" />
               </button>
-              <button
-                onClick={signOut}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
             </div>
           </div>
         </div>
@@ -165,7 +149,6 @@ export function Dashboard() {
         {view === 'profile' && couple && (
           <ProfileSettings
             couple={couple}
-            partner={partner}
             onUpdate={loadData}
           />
         )}

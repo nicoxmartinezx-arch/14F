@@ -34,14 +34,17 @@ export class MemoryService {
   }
 
   static async createMemory(memory: MemoryInsert): Promise<Memory> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    let deviceId = localStorage.getItem('deviceId');
+    if (!deviceId) {
+      deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('deviceId', deviceId);
+    }
 
     const { data, error } = await supabase
       .from('memories')
       .insert({
         ...memory,
-        created_by: user.id,
+        created_by: deviceId,
       })
       .select()
       .single();

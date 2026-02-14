@@ -4,72 +4,67 @@ import { Database } from '../lib/database.types';
 type Couple = Database['public']['Tables']['couples']['Row'];
 type CoupleInvitation = Database['public']['Tables']['couple_invitations']['Row'];
 
+function getOrCreateDeviceId(): string {
+  let deviceId = localStorage.getItem('deviceId');
+  if (!deviceId) {
+    deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('deviceId', deviceId);
+  }
+  return deviceId;
+}
+
+function generatePin(): string {
+  return Math.floor(10000000 + Math.random() * 90000000).toString();
+}
+
 export class CoupleService {
-  static async getMyCouple(): Promise<Couple | null> {
-    const { data, error } = await supabase
-      .from('couples')
-      .select('*')
-      .eq('status', 'active')
-      .maybeSingle();
+  static async generatePairingPin(): Promise<{ pin: string; expiresAt: string }> {
+    const pin = generatePin();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    if (error) throw error;
-    return data;
+    localStorage.setItem('pairingPin', pin);
+    localStorage.setItem('pairingPinExpires', expiresAt);
+
+    return { pin, expiresAt };
   }
 
-  static async createInvitation(recipientEmail: string): Promise<CoupleInvitation> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+  static getPairingPin(): { pin: string; expiresAt: string } | null {
+    const pin = localStorage.getItem('pairingPin');
+    const expiresAt = localStorage.getItem('pairingPinExpires');
 
-    const { data, error } = await supabase
-      .from('couple_invitations')
-      .insert({
-        sender_id: user.id,
-        recipient_email: recipientEmail,
-      })
-      .select()
-      .single();
+    if (!pin || !expiresAt) return null;
 
-    if (error) throw error;
-    return data;
+    if (new Date(expiresAt) < new Date()) {
+      localStorage.removeItem('pairingPin');
+      localStorage.removeItem('pairingPinExpires');
+      return null;
+    }
+
+    return { pin, expiresAt };
   }
 
-  static async getMyInvitations(): Promise<CoupleInvitation[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const { data, error } = await supabase
+  static async acceptPairingPin(pin: string): Promise<Couple> {
+    const { data: invitation, error } = await supabase
       .from('couple_invitations')
       .select('*')
-      .or(`sender_id.eq.${user.id},recipient_email.eq.${user.email}`)
-      .eq('status', 'pending');
-
-    if (error) throw error;
-    return data || [];
-  }
-
-  static async acceptInvitation(invitationCode: string): Promise<Couple> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const { data: invitation, error: invError } = await supabase
-      .from('couple_invitations')
-      .select('*')
-      .eq('invitation_code', invitationCode)
+      .eq('invitation_code', pin)
       .eq('status', 'pending')
       .maybeSingle();
 
-    if (invError) throw invError;
-    if (!invitation) throw new Error('Invitation not found or already used');
+    if (error) throw error;
+    if (!invitation) throw new Error('PIN not found or already used');
 
     if (new Date(invitation.expires_at) < new Date()) {
-      throw new Error('Invitation has expired');
+      throw new Error('PIN has expired');
     }
+
+    const deviceId = getOrCreateDeviceId();
 
     const { error: updateError } = await supabase
       .from('couple_invitations')
       .update({
         status: 'accepted',
-        recipient_id: user.id,
+        recipient_id: deviceId,
       })
       .eq('id', invitation.id);
 
@@ -79,7 +74,7 @@ export class CoupleService {
       .from('couples')
       .insert({
         user1_id: invitation.sender_id,
-        user2_id: user.id,
+        user2_id: deviceId,
         status: 'active',
       })
       .select()
@@ -89,6 +84,36 @@ export class CoupleService {
     return couple;
   }
 
+  static async getMyCouple(): Promise<Couple | null> {
+    const deviceId = getOrCreateDeviceId();
+    const coupleId = localStorage.getItem('coupleId');
+
+    if (coupleId) {
+      const { data, error } = await supabase
+        .from('couples')
+        .select('*')
+        .eq('id', coupleId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    }
+
+    const { data, error } = await supabase
+      .from('couples')
+      .select('*')
+      .or(`user1_id.eq.${deviceId},user2_id.eq.${deviceId}`)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data) {
+      localStorage.setItem('coupleId', data.id);
+    }
+    return data;
+  }
+
   static async updateCouple(coupleId: string, updates: Partial<Couple>): Promise<void> {
     const { error } = await supabase
       .from('couples')
@@ -96,29 +121,5 @@ export class CoupleService {
       .eq('id', coupleId);
 
     if (error) throw error;
-  }
-
-  static async getCouplePartner(coupleId: string): Promise<any> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const { data: couple, error: coupleError } = await supabase
-      .from('couples')
-      .select('user1_id, user2_id')
-      .eq('id', coupleId)
-      .single();
-
-    if (coupleError) throw coupleError;
-
-    const partnerId = couple.user1_id === user.id ? couple.user2_id : couple.user1_id;
-
-    const { data: partner, error: partnerError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', partnerId)
-      .single();
-
-    if (partnerError) throw partnerError;
-    return partner;
   }
 }
