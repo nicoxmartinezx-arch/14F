@@ -128,23 +128,41 @@ export function MemoryForm({ coupleId, memory, onSubmit, onClose }: MemoryFormPr
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Image className="w-4 h-4 inline mr-1" />
-              Image URL (optional)
+              Enlace de Foto (opcional)
             </label>
             <input
               type="url"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-              placeholder="https://example.com/image.jpg"
+              placeholder="Pega aquí tu enlace de iCloud o cualquier URL de imagen"
             />
+            <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-800 font-medium mb-1">
+                Cómo compartir desde iCloud Photos:
+              </p>
+              <ol className="text-xs text-blue-700 space-y-1 ml-4 list-decimal">
+                <li>Abre la foto en iCloud Photos o en tu iPhone</li>
+                <li>Toca el botón de compartir</li>
+                <li>Selecciona "Copiar enlace de iCloud" o "Compartir enlace"</li>
+                <li>Pega el enlace aquí</li>
+              </ol>
+              <p className="text-xs text-blue-600 mt-2">
+                También puedes usar enlaces de Google Photos, Dropbox, o cualquier imagen pública.
+              </p>
+            </div>
             {imageUrl && (
-              <div className="mt-3 relative h-48 rounded-lg overflow-hidden">
+              <div className="mt-3 relative h-48 rounded-lg overflow-hidden bg-gray-100">
                 <img
                   src={imageUrl}
                   alt="Preview"
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                      parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-500 text-sm">Vista previa no disponible - El enlace se guardará correctamente</div>';
+                    }
                   }}
                 />
               </div>
