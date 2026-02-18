@@ -49,7 +49,10 @@ function AppContent() {
     );
   }
 
-  if (!hasCouple || !coupleId) {
+  if (!coupleId) {
+    if (hasCouple === false) {
+      return <CoupleSetup onCoupleCreated={() => checkCouple()} />;
+    }
     return <CoupleSetup onCoupleCreated={() => checkCouple()} />;
   }
 

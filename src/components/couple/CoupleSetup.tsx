@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Heart, Send, UserPlus, Check, Clock, Copy, Zap } from 'lucide-react';
 import { CoupleService } from '../../services/CoupleService';
+import { PINDisplay } from './PINDisplay';
+import { PINLogin } from './PINLogin';
 
 export function CoupleSetup({ onCoupleCreated }: { onCoupleCreated: () => void }) {
-  const [step, setStep] = useState<'choice' | 'generate' | 'accept'>('choice');
+  const [step, setStep] = useState<'login' | 'choice' | 'generate' | 'display' | 'accept'>('login');
   const [pin, setPin] = useState('');
+  const [pinExpiresAt, setPinExpiresAt] = useState('');
   const [inputPin, setInputPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,9 +40,8 @@ export function CoupleSetup({ onCoupleCreated }: { onCoupleCreated: () => void }
       const coupleId = localStorage.getItem('coupleId') || 'new-couple-' + Date.now();
       const { pin: newPin, expiresAt } = await CoupleService.generatePairingPin(coupleId);
       setPin(newPin);
-      const expiresTime = new Date(expiresAt).getTime();
-      setTimeLeft(Math.ceil((expiresTime - Date.now()) / 1000));
-      setSuccess('PIN generated! Share this with your partner');
+      setPinExpiresAt(expiresAt);
+      setStep('display');
     } catch (err: any) {
       setError(err.message || 'Failed to generate PIN');
     } finally {
@@ -68,6 +70,20 @@ export function CoupleSetup({ onCoupleCreated }: { onCoupleCreated: () => void }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (step === 'login') {
+    return <PINLogin onLoginSuccess={onCoupleCreated} />;
+  }
+
+  if (step === 'display' && pin && pinExpiresAt) {
+    return (
+      <PINDisplay
+        pin={pin}
+        expiresAt={pinExpiresAt}
+        onContinue={() => setStep('choice')}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-100 via-pink-50 to-red-100 flex items-center justify-center p-4">
