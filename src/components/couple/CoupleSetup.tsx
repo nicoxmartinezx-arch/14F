@@ -34,7 +34,8 @@ export function CoupleSetup({ onCoupleCreated }: { onCoupleCreated: () => void }
     setLoading(true);
 
     try {
-      const { pin: newPin, expiresAt } = await CoupleService.generatePairingPin();
+      const coupleId = localStorage.getItem('coupleId') || 'new-couple-' + Date.now();
+      const { pin: newPin, expiresAt } = await CoupleService.generatePairingPin(coupleId);
       setPin(newPin);
       const expiresTime = new Date(expiresAt).getTime();
       setTimeLeft(Math.ceil((expiresTime - Date.now()) / 1000));
@@ -52,7 +53,8 @@ export function CoupleSetup({ onCoupleCreated }: { onCoupleCreated: () => void }
     setLoading(true);
 
     try {
-      await CoupleService.acceptPairingPin(inputPin);
+      const { couple } = await CoupleService.acceptPairingPin(inputPin);
+      localStorage.setItem('coupleId', couple.id);
       onCoupleCreated();
     } catch (err: any) {
       setError(err.message || 'Failed to accept PIN');

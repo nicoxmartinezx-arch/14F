@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 
 type Couple = Database['public']['Tables']['couples']['Row'];
-type CoupleInvitation = Database['public']['Tables']['couple_invitations']['Row'];
+type PairingSession = Database['public']['Tables']['pairing_sessions']['Row'];
 
 function getOrCreateDeviceId(): string {
   let deviceId = localStorage.getItem('deviceId');
@@ -17,15 +17,39 @@ function generatePin(): string {
   return Math.floor(10000000 + Math.random() * 90000000).toString();
 }
 
+function generateSessionToken(): string {
+  return 'token_' + Math.random().toString(36).substr(2, 32) + '_' + Date.now();
+}
+
 export class CoupleService {
-  static async generatePairingPin(): Promise<{ pin: string; expiresAt: string }> {
+  static async generatePairingPin(coupleId: string): Promise<{ pin: string; expiresAt: string; sessionToken: string }> {
+    const deviceId = getOrCreateDeviceId();
     const pin = generatePin();
+    const sessionToken = generateSessionToken();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    localStorage.setItem('pairingPin', pin);
-    localStorage.setItem('pairingPinExpires', expiresAt);
+    const { data, error } = await supabase
+      .from('pairing_sessions')
+      .insert({
+        couple_id: coupleId,
+        device_id_1: deviceId,
+        device_id_2: '',
+        session_token_1: sessionToken,
+        session_token_2: '',
+        pin_code: pin,
+        pin_expires_at: expiresAt,
+        status: 'active',
+      })
+      .select()
+      .single();
 
-    return { pin, expiresAt };
+    if (error) throw error;
+
+    localStorage.setItem('pairingPin', pin);
+    localStorage.setItem('pairingSessionToken', sessionToken);
+    localStorage.setItem('pairingSessionId', data.id);
+
+    return { pin, expiresAt, sessionToken };
   }
 
   static getPairingPin(): { pin: string; expiresAt: string } | null {
@@ -43,61 +67,68 @@ export class CoupleService {
     return { pin, expiresAt };
   }
 
-  static async acceptPairingPin(pin: string): Promise<Couple> {
-    const { data: invitation, error } = await supabase
-      .from('couple_invitations')
+  static async acceptPairingPin(pin: string): Promise<{ couple: Couple; sessionToken: string }> {
+    const deviceId = getOrCreateDeviceId();
+    const sessionToken = generateSessionToken();
+
+    const { data: pairingSession, error: sessionError } = await supabase
+      .from('pairing_sessions')
       .select('*')
-      .eq('invitation_code', pin)
-      .eq('status', 'pending')
+      .eq('pin_code', pin)
+      .eq('status', 'active')
       .maybeSingle();
 
-    if (error) throw error;
-    if (!invitation) throw new Error('PIN not found or already used');
+    if (sessionError) throw sessionError;
+    if (!pairingSession) throw new Error('PIN not found or already used');
 
-    if (new Date(invitation.expires_at) < new Date()) {
+    if (new Date(pairingSession.pin_expires_at) < new Date()) {
       throw new Error('PIN has expired');
     }
 
-    const deviceId = getOrCreateDeviceId();
-
     const { error: updateError } = await supabase
-      .from('couple_invitations')
+      .from('pairing_sessions')
       .update({
-        status: 'accepted',
-        recipient_id: deviceId,
+        device_id_2: deviceId,
+        session_token_2: sessionToken,
       })
-      .eq('id', invitation.id);
+      .eq('id', pairingSession.id);
 
     if (updateError) throw updateError;
 
     const { data: couple, error: coupleError } = await supabase
       .from('couples')
-      .insert({
-        user1_id: invitation.sender_id,
-        user2_id: deviceId,
-        status: 'active',
-      })
-      .select()
+      .select('*')
+      .eq('id', pairingSession.couple_id)
       .single();
 
     if (coupleError) throw coupleError;
-    return couple;
+
+    localStorage.setItem('sessionToken', sessionToken);
+    localStorage.setItem('coupleId', couple.id);
+    localStorage.setItem('deviceId', deviceId);
+
+    return { couple, sessionToken };
   }
 
   static async getMyCouple(): Promise<Couple | null> {
     const deviceId = getOrCreateDeviceId();
+    const sessionToken = localStorage.getItem('sessionToken');
     const coupleId = localStorage.getItem('coupleId');
 
-    if (coupleId) {
-      const { data, error } = await supabase
+    if (sessionToken && coupleId) {
+      const { data: couple, error: coupleError } = await supabase
         .from('couples')
         .select('*')
         .eq('id', coupleId)
         .eq('status', 'active')
         .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (coupleError) throw coupleError;
+
+      if (couple) {
+        await this.updateDeviceSession(deviceId, coupleId);
+        return couple;
+      }
     }
 
     const { data, error } = await supabase
@@ -110,8 +141,54 @@ export class CoupleService {
     if (error) throw error;
     if (data) {
       localStorage.setItem('coupleId', data.id);
+      if (!sessionToken) {
+        const newToken = generateSessionToken();
+        localStorage.setItem('sessionToken', newToken);
+      }
+      await this.updateDeviceSession(deviceId, data.id);
     }
     return data;
+  }
+
+  static async updateDeviceSession(deviceId: string, coupleId: string): Promise<void> {
+    const deviceToken = localStorage.getItem('deviceToken') || generateSessionToken();
+
+    if (!localStorage.getItem('deviceToken')) {
+      localStorage.setItem('deviceToken', deviceToken);
+    }
+
+    const { error } = await supabase
+      .from('device_sessions')
+      .upsert({
+        device_id: deviceId,
+        couple_id: coupleId,
+        device_token: deviceToken,
+        last_seen_at: new Date().toISOString(),
+      }, {
+        onConflict: 'device_id'
+      });
+
+    if (error) throw error;
+  }
+
+  static async validateSession(): Promise<boolean> {
+    const deviceId = getOrCreateDeviceId();
+    const sessionToken = localStorage.getItem('sessionToken');
+    const coupleId = localStorage.getItem('coupleId');
+
+    if (!sessionToken || !coupleId) return false;
+
+    const { data: couple, error } = await supabase
+      .from('couples')
+      .select('*')
+      .eq('id', coupleId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (error || !couple) return false;
+
+    const isUserInCouple = couple.user1_id === deviceId || couple.user2_id === deviceId;
+    return isUserInCouple;
   }
 
   static async updateCouple(coupleId: string, updates: Partial<Couple>): Promise<void> {
@@ -121,5 +198,11 @@ export class CoupleService {
       .eq('id', coupleId);
 
     if (error) throw error;
+  }
+
+  static clearSession(): void {
+    localStorage.removeItem('sessionToken');
+    localStorage.removeItem('coupleId');
+    localStorage.removeItem('pairingPin');
   }
 }

@@ -15,6 +15,16 @@ function AppContent() {
 
   const checkCouple = async () => {
     try {
+      const isSessionValid = await CoupleService.validateSession();
+      if (isSessionValid) {
+        const couple = await CoupleService.getMyCouple();
+        if (couple) {
+          setCoupleId(couple.id);
+          setHasCouple(true);
+          return;
+        }
+      }
+
       const couple = await CoupleService.getMyCouple();
       if (couple) {
         setCoupleId(couple.id);

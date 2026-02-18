@@ -137,6 +137,85 @@ export interface Database {
           created_at?: string
         }
       }
+      pairing_sessions: {
+        Row: {
+          id: string
+          couple_id: string
+          device_id_1: string
+          device_id_2: string
+          session_token_1: string
+          session_token_2: string
+          pin_code: string
+          pin_expires_at: string
+          last_activity_1: string
+          last_activity_2: string
+          status: string
+          created_at: string
+          expires_at: string
+        }
+        Insert: {
+          id?: string
+          couple_id: string
+          device_id_1: string
+          device_id_2: string
+          session_token_1: string
+          session_token_2: string
+          pin_code: string
+          pin_expires_at: string
+          last_activity_1?: string
+          last_activity_2?: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+        }
+        Update: {
+          id?: string
+          couple_id?: string
+          device_id_1?: string
+          device_id_2?: string
+          session_token_1?: string
+          session_token_2?: string
+          pin_code?: string
+          pin_expires_at?: string
+          last_activity_1?: string
+          last_activity_2?: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+        }
+      }
+      device_sessions: {
+        Row: {
+          id: string
+          device_id: string
+          couple_id: string | null
+          device_name: string | null
+          device_token: string
+          last_seen_at: string
+          created_at: string
+          expires_at: string
+        }
+        Insert: {
+          id?: string
+          device_id: string
+          couple_id?: string | null
+          device_name?: string | null
+          device_token: string
+          last_seen_at?: string
+          created_at?: string
+          expires_at?: string
+        }
+        Update: {
+          id?: string
+          device_id?: string
+          couple_id?: string | null
+          device_name?: string | null
+          device_token?: string
+          last_seen_at?: string
+          created_at?: string
+          expires_at?: string
+        }
+      }
     }
   }
 }
