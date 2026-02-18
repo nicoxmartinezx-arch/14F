@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart, LogIn, AlertCircle, Copy, Check } from 'lucide-react';
 import { CoupleService } from '../../services/CoupleService';
 
@@ -12,6 +12,19 @@ export function PINLogin({ onLoginSuccess }: PINLoginProps) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // ✅ NUEVO (no reemplaza nada)
+  const [isFirstLogin, setIsFirstLogin] = useState(true);
+  const [lastLoginInfo, setLastLoginInfo] = useState<string | null>(null);
+
+  // ✅ NUEVO (no afecta nada existente)
+  useEffect(() => {
+    const storedLogin = localStorage.getItem('lastLogin');
+    if (storedLogin) {
+      setIsFirstLogin(false);
+      setLastLoginInfo(storedLogin);
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -20,10 +33,16 @@ export function PINLogin({ onLoginSuccess }: PINLoginProps) {
 
     try {
       const { couple } = await CoupleService.acceptPairingPin(pin);
+
+      // ✅ NUEVO: guardar último acceso
+      const now = new Date().toLocaleString();
+      localStorage.setItem('lastLogin', now);
+
       setSuccess('Connected successfully! Redirecting...');
       setTimeout(() => {
         onLoginSuccess();
       }, 1000);
+
     } catch (err: any) {
       setError(err.message || 'Failed to connect with PIN');
     } finally {
@@ -38,12 +57,28 @@ export function PINLogin({ onLoginSuccess }: PINLoginProps) {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-rose-500 to-pink-600 rounded-full mb-4 shadow-lg">
             <Heart className="w-10 h-10 text-white fill-white" />
           </div>
+
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
             Memory Book
           </h1>
+
+          {/* 👇 TU TEXTO ORIGINAL NO SE ELIMINA */}
           <p className="text-gray-600">
             Welcome back! Enter your PIN to continue
           </p>
+
+          {/* 👇 SOLO AGREGO ESTO DEBAJO */}
+          {!isFirstLogin && lastLoginInfo && (
+            <p className="text-xs text-gray-500 mt-2">
+              Last login: {lastLoginInfo}
+            </p>
+          )}
+
+          {isFirstLogin && (
+            <p className="text-xs text-rose-500 mt-2">
+              First time login detected 💕
+            </p>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
